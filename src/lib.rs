@@ -6,7 +6,7 @@ use wasmcloud_interface_httpserver::{HttpRequest, HttpResponse, HttpServer, Http
 struct OcirefferActor {}
 
 const ACR_PREFIX: &str = "wasmcloud.azurecr.io";
-const WASMCLOUD_GRAY_COLOR: &str = "768692";
+const WASMCLOUD_GUNMETAL_COLOR: &str = "253746";
 
 /// Implementation of HttpServer trait methods
 #[async_trait]
@@ -21,7 +21,7 @@ impl HttpServer for OcirefferActor {
             body: serde_json::to_vec(&ShieldsResponse::new(
                 "",
                 &oci_url(provider_name),
-                WASMCLOUD_GRAY_COLOR,
+                WASMCLOUD_GUNMETAL_COLOR,
             ))
             .unwrap_or_default(),
             ..Default::default()
