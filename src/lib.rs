@@ -5,18 +5,22 @@ use wasmcloud_interface_httpserver::{HttpRequest, HttpResponse, HttpServer, Http
 #[services(Actor, HttpServer)]
 struct OcirefferActor {}
 
+const ACR_PREFIX: &str = "wasmcloud.azurecr.io";
+
 /// Implementation of HttpServer trait methods
 #[async_trait]
 impl HttpServer for OcirefferActor {
     async fn handle_request(
         &self,
         _ctx: &Context,
-        _req: &HttpRequest,
+        req: &HttpRequest,
     ) -> std::result::Result<HttpResponse, RpcError> {
+        let path = req.path.trim_matches('/');
+        let version = "0.14.6";
         Ok(HttpResponse {
             body: serde_json::to_vec(&ShieldsResponse::new(
-                "nats_messaging",
-                "wasmcloud.azurecr.io/nats_messaging:0.14.5",
+                "",
+                &format!("{}/{}:{}", ACR_PREFIX, path, version),
                 "green",
             ))
             .unwrap_or_default(),
