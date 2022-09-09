@@ -6,6 +6,7 @@ use wasmcloud_interface_httpserver::{HttpRequest, HttpResponse, HttpServer, Http
 struct OcirefferActor {}
 
 const ACR_PREFIX: &str = "wasmcloud.azurecr.io";
+const WASMCLOUD_GRAY_COLOR: &str = "768692";
 
 /// Implementation of HttpServer trait methods
 #[async_trait]
@@ -17,8 +18,12 @@ impl HttpServer for OcirefferActor {
     ) -> std::result::Result<HttpResponse, RpcError> {
         let provider_name = req.path.trim_matches('/');
         Ok(HttpResponse {
-            body: serde_json::to_vec(&ShieldsResponse::new("", &oci_url(provider_name), "black"))
-                .unwrap_or_default(),
+            body: serde_json::to_vec(&ShieldsResponse::new(
+                "",
+                &oci_url(provider_name),
+                WASMCLOUD_GRAY_COLOR,
+            ))
+            .unwrap_or_default(),
             ..Default::default()
         })
     }
@@ -56,8 +61,14 @@ fn oci_url(provider_name: &str) -> String {
 
 fn provider_version(provider_name: &str) -> Option<&str> {
     match provider_name {
-        "blobstore_f" => Some("0.14.5"),
+        "blobstore-s3" => Some("0.2.2"),
+        "httpclient" => Some("0.5.3"),
+        "httpserver" => Some("0.16.3"),
+        "kv-vault" => Some("0.2.3"),
+        "kvredis" => Some("0.16.3"),
+        "lattice-controller" => Some("0.8.3"),
         "nats_messaging" => Some("0.14.5"),
+        "sqldb-postgres" => Some("0.3.4"),
         _ => None,
     }
 }
