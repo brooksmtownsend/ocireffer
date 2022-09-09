@@ -15,15 +15,10 @@ impl HttpServer for OcirefferActor {
         _ctx: &Context,
         req: &HttpRequest,
     ) -> std::result::Result<HttpResponse, RpcError> {
-        let path = req.path.trim_matches('/');
-        let version = "0.14.6";
+        let provider_name = req.path.trim_matches('/');
         Ok(HttpResponse {
-            body: serde_json::to_vec(&ShieldsResponse::new(
-                "",
-                &format!("{}/{}:{}", ACR_PREFIX, path, version),
-                "green",
-            ))
-            .unwrap_or_default(),
+            body: serde_json::to_vec(&ShieldsResponse::new("", &oci_url(provider_name), "black"))
+                .unwrap_or_default(),
             ..Default::default()
         })
     }
@@ -49,5 +44,20 @@ impl ShieldsResponse {
             color: color.to_string(),
             named_logo: "wasmcloud".to_string(),
         }
+    }
+}
+
+fn oci_url(provider_name: &str) -> String {
+    match provider_version(provider_name) {
+        None => format!("Provider not yet published"),
+        Some(ver) => format!("{}/{}:{}", ACR_PREFIX, provider_name, ver),
+    }
+}
+
+fn provider_version(provider_name: &str) -> Option<&str> {
+    match provider_name {
+        "blobstore_f" => Some("0.14.5"),
+        "nats_messaging" => Some("0.14.5"),
+        _ => None,
     }
 }
