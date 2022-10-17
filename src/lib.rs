@@ -54,19 +54,20 @@ impl ShieldsResponse {
 
 fn oci_url(provider_name: &str) -> String {
     match provider_version(provider_name) {
-        None => format!("Provider not yet published"),
+        None => "Provider not yet published".to_string(),
         Some(ver) => format!("{}/{}:{}", ACR_PREFIX, provider_name, ver),
     }
 }
 
 fn provider_version(provider_name: &str) -> Option<&str> {
     match provider_name {
+        "blobstore-fs" => Some("0.1.0"),
         "blobstore-s3" => Some("0.2.2"),
         "httpclient" => Some("0.5.3"),
         "httpserver" => Some("0.16.3"),
         "kv-vault" => Some("0.2.3"),
-        "kvredis" => Some("0.16.3"),
-        "lattice-controller" => Some("0.8.3"),
+        "kvredis" => Some("0.18.0"),
+        "lattice-controller" => Some("0.9.1"),
         "nats_messaging" => Some("0.14.5"),
         "sqldb-postgres" => Some("0.3.4"),
         _ => None,
