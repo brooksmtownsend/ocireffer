@@ -61,15 +61,15 @@ fn oci_url(provider_name: &str) -> String {
 
 fn provider_version(provider_name: &str) -> Option<&str> {
     match provider_name {
-        "blobstore-fs" => Some("0.1.0"),
-        "blobstore-s3" => Some("0.2.2"),
-        "httpclient" => Some("0.5.3"),
-        "httpserver" => Some("0.16.3"),
-        "kv-vault" => Some("0.2.3"),
-        "kvredis" => Some("0.18.0"),
-        "lattice-controller" => Some("0.9.1"),
-        "nats_messaging" => Some("0.14.5"),
-        "sqldb-postgres" => Some("0.3.4"),
+        "blobstore-fs" => Some("0.2.0"),
+        "blobstore-s3" => Some("0.3.0"),
+        "httpclient" => Some("0.6.0"),
+        "httpserver" => Some("0.17.0"),
+        "kv-vault" => Some("0.3.0"),
+        "kvredis" => Some("0.19.0"),
+        "lattice-controller" => Some("0.10.0"),
+        "nats_messaging" => Some("0.15.0"),
+        "sqldb-postgres" => Some("0.4.0"),
         _ => None,
     }
 }
