@@ -61,7 +61,7 @@ fn oci_url(provider_name: &str) -> String {
 
 fn provider_version(provider_name: &str) -> Option<&str> {
     match provider_name {
-        "blobstore-fs" => Some("0.2.0"),
+        "blobstore_fs" => Some("0.2.0"),
         "blobstore-s3" => Some("0.3.0"),
         "httpclient" => Some("0.6.0"),
         "httpserver" => Some("0.17.0"),
