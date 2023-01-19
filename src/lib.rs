@@ -17,15 +17,14 @@ impl HttpServer for OcirefferActor {
         req: &HttpRequest,
     ) -> std::result::Result<HttpResponse, RpcError> {
         let provider_name = req.path.trim_matches('/');
-        Ok(HttpResponse {
-            body: serde_json::to_vec(&ShieldsResponse::new(
+        Ok(HttpResponse::ok(
+            serde_json::to_vec(&ShieldsResponse::new(
                 "",
                 &oci_url(provider_name),
                 WASMCLOUD_GUNMETAL_COLOR,
             ))
             .unwrap_or_default(),
-            ..Default::default()
-        })
+        ))
     }
 }
 
