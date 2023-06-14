@@ -1,31 +1,17 @@
 use wasmbus_rpc::actor::prelude::*;
 use wasmcloud_interface_httpserver::{HttpRequest, HttpResponse, HttpServer, HttpServerReceiver};
+use wasmcloud_interface_keyvalue::{GetResponse, KeyValue, KeyValueSender, SetRequest};
+
+const WASMCLOUD_GUNMETAL_COLOR: &str = "253746";
 
 #[derive(Debug, Default, Actor, HealthResponder)]
 #[services(Actor, HttpServer)]
 struct OcirefferActor {}
 
-const ACR_PREFIX: &str = "wasmcloud.azurecr.io";
-const WASMCLOUD_GUNMETAL_COLOR: &str = "253746";
-
-/// Implementation of HttpServer trait methods
-#[async_trait]
-impl HttpServer for OcirefferActor {
-    async fn handle_request(
-        &self,
-        _ctx: &Context,
-        req: &HttpRequest,
-    ) -> std::result::Result<HttpResponse, RpcError> {
-        let provider_name = req.path.trim_matches('/');
-        Ok(HttpResponse::ok(
-            serde_json::to_vec(&ShieldsResponse::new(
-                "",
-                &oci_url(provider_name),
-                WASMCLOUD_GUNMETAL_COLOR,
-            ))
-            .unwrap_or_default(),
-        ))
-    }
+#[derive(serde::Deserialize, serde::Serialize)]
+struct ProviderUpdate<'a> {
+    name: &'a str,
+    url: &'a str,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -51,24 +37,72 @@ impl ShieldsResponse {
     }
 }
 
-fn oci_url(provider_name: &str) -> String {
-    match provider_version(provider_name) {
-        None => "Provider not yet published".to_string(),
-        Some(ver) => format!("{}/{}:{}", ACR_PREFIX, provider_name, ver),
+/// Implementation of HttpServer trait methods
+#[async_trait]
+impl HttpServer for OcirefferActor {
+    async fn handle_request(
+        &self,
+        ctx: &Context,
+        req: &HttpRequest,
+    ) -> std::result::Result<HttpResponse, RpcError> {
+        match (&req.method[..], &req.path[..]) {
+            ("POST", "/api/provider") => store_provider(ctx, &req.body).await,
+            ("GET", path) => {
+                let provider_name = path.trim_matches('/');
+                Ok(HttpResponse::ok(
+                    serde_json::to_vec(&ShieldsResponse::new(
+                        "",
+                        &provider_url(ctx, provider_name)
+                            .await
+                            .unwrap_or_else(|| "Provider not yet published".to_string()),
+                        WASMCLOUD_GUNMETAL_COLOR,
+                    ))
+                    .unwrap_or_default(),
+                ))
+            }
+            _ => Ok(HttpResponse::not_found()),
+        }
     }
 }
 
-fn provider_version(provider_name: &str) -> Option<&str> {
-    match provider_name {
-        "blobstore_fs" => Some("0.2.0"),
-        "blobstore-s3" => Some("0.3.0"),
-        "httpclient" => Some("0.6.0"),
-        "httpserver" => Some("0.17.0"),
-        "kv-vault" => Some("0.3.0"),
-        "kvredis" => Some("0.19.0"),
-        "lattice-controller" => Some("0.10.0"),
-        "nats_messaging" => Some("0.15.0"),
-        "sqldb-postgres" => Some("0.4.0"),
-        _ => None,
+async fn store_provider(ctx: &Context, payload: &[u8]) -> RpcResult<HttpResponse> {
+    if let Ok(provider_info) = serde_json::from_slice::<ProviderUpdate>(payload) {
+        let key = provider_info.name;
+        let value = provider_info.url;
+        if let Err(e) = KeyValueSender::new()
+            .set(
+                ctx,
+                &SetRequest {
+                    key: key.to_string(),
+                    value: value.to_string(),
+                    expires: 0,
+                },
+            )
+            .await
+        {
+            Ok(HttpResponse::internal_server_error(format!(
+                "Failed to store provider url: {e:?}",
+            )))
+        } else {
+            Ok(HttpResponse::ok(format!(
+                "Provider url {value} stored for {key}"
+            )))
+        }
+    } else {
+        Ok(HttpResponse::bad_request(
+            "Payload did not contain provider name and url",
+        ))
+    }
+}
+
+async fn provider_url(ctx: &Context, provider_name: &str) -> Option<String> {
+    if let Ok(GetResponse {
+        exists: true,
+        value,
+    }) = KeyValueSender::new().get(ctx, provider_name).await
+    {
+        Some(value.to_owned())
+    } else {
+        None
     }
 }

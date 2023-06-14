@@ -1,7 +1,6 @@
 name = "ocireffer"
 language = "rust"
 type = "actor"
-version = "0.1.7"
 
 [actor]
-claims = ["wasmcloud:httpserver"]
+claims = ["wasmcloud:httpserver", "wasmcloud:keyvalue"]
