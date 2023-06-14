@@ -2,12 +2,13 @@
 
 This actor is used to store and retrive the official OCI references for wasmCloud capability providers. Though it's used for providers primarily, there's no reason why it couldn't be used for actors as well.
 
-There are two endpoints this actor supports:
+There are three endpoints this actor supports:
 
-| Endpoint        | Method | Description                                | Payload                                                                     |
-| --------------- | ------ | ------------------------------------------ | --------------------------------------------------------------------------- |
-| `/api/provider` | `POST` | Stores a new OCI reference for a provider  | `{ "name": "httpserver", "url": "wasmcloud.azurecr.io/httpserver:0.17.0" }` |
-| `/<provider>`   | `GET`  | Retrieves the OCI reference for a provider | N/A                                                                         |
+| Endpoint         | Method | Description                                               | Payload                                                                                                                                                                            |
+| ---------------- | ------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/provider`  | `POST` | Stores a new OCI reference for a provider                 | `{ "name": "httpserver", "url": "wasmcloud.azurecr.io/httpserver:0.17.0" }`                                                                                                        |
+| `/api/azurehook` | `POST` | Stores a new OCI reference for a provider, from a webhook | Refer to [the Azure docs](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-webhook-reference#payload-example-image-push-event) for the payload format |
+| `/<provider>`    | `GET`  | Retrieves the OCI reference for a provider                | N/A                                                                                                                                                                                |
 
 ## Example Usage
 
