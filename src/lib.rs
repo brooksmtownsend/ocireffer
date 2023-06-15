@@ -12,7 +12,7 @@ const WASMCLOUD_GUNMETAL_COLOR: &str = "253746";
 struct OcirefferActor {}
 
 #[derive(serde::Deserialize, serde::Serialize)]
-struct ProviderUpdate<'a> {
+struct ReferenceInformation<'a> {
     name: &'a str,
     url: &'a str,
 }
@@ -48,14 +48,12 @@ impl HttpServer for OcirefferActor {
         ctx: &Context,
         req: &HttpRequest,
     ) -> std::result::Result<HttpResponse, RpcError> {
-        match (&req.method[..], &req.path[..]) {
-            ("POST", "/api/provider") => {
-                if let Ok(update) = serde_json::from_slice::<ProviderUpdate>(&req.body) {
-                    store_provider(ctx, update.name, update.url).await
+        Ok(match (&req.method[..], &req.path[..]) {
+            ("POST", "/api/reference") => {
+                if let Ok(update) = serde_json::from_slice::<ReferenceInformation>(&req.body) {
+                    store_reference(ctx, update.name, update.url).await
                 } else {
-                    Ok(HttpResponse::bad_request(
-                        "Payload did not contain provider name and url",
-                    ))
+                    HttpResponse::bad_request("Payload did not contain provider name and url")
                 }
             }
             ("POST", "/api/azurehook") => {
@@ -65,32 +63,29 @@ impl HttpServer for OcirefferActor {
                         "{}/{}:{}",
                         event.request.host, event.target.repository, event.target.tag
                     );
-                    store_provider(ctx, name, &url).await
+                    store_reference(ctx, name, &url).await
                 } else {
-                    Ok(HttpResponse::bad_request(
+                    HttpResponse::bad_request(
                         "Azure webhook payload did not contain required fields",
-                    ))
+                    )
                 }
             }
-            ("GET", path) => {
-                let provider_name = path.trim_matches('/');
-                Ok(HttpResponse::ok(
-                    serde_json::to_vec(&ShieldsResponse::new(
-                        "",
-                        &provider_url(ctx, provider_name)
-                            .await
-                            .unwrap_or_else(|| "Provider not yet published".to_string()),
-                        WASMCLOUD_GUNMETAL_COLOR,
-                    ))
-                    .unwrap_or_default(),
+            ("GET", path) => HttpResponse::ok(
+                serde_json::to_vec(&ShieldsResponse::new(
+                    "",
+                    &fetch_reference(ctx, path.trim_matches('/'))
+                        .await
+                        .unwrap_or_else(|| "Provider not yet published".to_string()),
+                    WASMCLOUD_GUNMETAL_COLOR,
                 ))
-            }
-            _ => Ok(HttpResponse::not_found()),
-        }
+                .unwrap_or_else(|_| "Failed to serialize response, for some ungodly reason".into()),
+            ),
+            _ => HttpResponse::not_found(),
+        })
     }
 }
 
-async fn store_provider(ctx: &Context, name: &str, url: &str) -> RpcResult<HttpResponse> {
+async fn store_reference(ctx: &Context, name: &str, url: &str) -> HttpResponse {
     if let Err(e) = KeyValueSender::new()
         .set(
             ctx,
@@ -102,23 +97,19 @@ async fn store_provider(ctx: &Context, name: &str, url: &str) -> RpcResult<HttpR
         )
         .await
     {
-        Ok(HttpResponse::internal_server_error(format!(
-            "Failed to store provider url: {e:?}",
-        )))
+        HttpResponse::internal_server_error(format!("Failed to store url: {e:?}",))
     } else {
-        Ok(HttpResponse::ok(format!(
-            "Provider url {url} stored for {name}"
-        )))
+        HttpResponse::ok(format!("Url {url} stored for {name}"))
     }
 }
 
-async fn provider_url(ctx: &Context, provider_name: &str) -> Option<String> {
+async fn fetch_reference(ctx: &Context, name: &str) -> Option<String> {
     if let Ok(GetResponse {
         exists: true,
         value,
-    }) = KeyValueSender::new().get(ctx, provider_name).await
+    }) = KeyValueSender::new().get(ctx, name).await
     {
-        Some(value.to_owned())
+        Some(value)
     } else {
         None
     }
