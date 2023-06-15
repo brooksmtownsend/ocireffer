@@ -1,11 +1,14 @@
 use wasmbus_rpc::actor::prelude::*;
 use wasmcloud_interface_httpserver::{HttpRequest, HttpResponse, HttpServer, HttpServerReceiver};
-use wasmcloud_interface_keyvalue::{GetResponse, KeyValue, KeyValueSender, SetRequest};
+use wasmcloud_interface_keyvalue::{
+    GetResponse, KeyValue, KeyValueSender, SetAddRequest, SetDelRequest, SetRequest,
+};
 
 mod azure;
 use azure::*;
 
 const WASMCLOUD_GUNMETAL_COLOR: &str = "253746";
+const OFFICIAL_KEY_PREFIX: &str = "wasmcloud:category";
 
 #[derive(Debug, Default, Actor, HealthResponder)]
 #[services(Actor, HttpServer)]
@@ -15,6 +18,17 @@ struct OcirefferActor {}
 struct ReferenceInformation<'a> {
     name: &'a str,
     url: &'a str,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct OfficialPost<'a> {
+    category: &'a str,
+    name: &'a str,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct OfficialGet<'a> {
+    category: &'a str,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -43,12 +57,9 @@ impl ShieldsResponse {
 /// Implementation of HttpServer trait methods
 #[async_trait]
 impl HttpServer for OcirefferActor {
-    async fn handle_request(
-        &self,
-        ctx: &Context,
-        req: &HttpRequest,
-    ) -> std::result::Result<HttpResponse, RpcError> {
+    async fn handle_request(&self, ctx: &Context, req: &HttpRequest) -> RpcResult<HttpResponse> {
         Ok(match (&req.method[..], &req.path[..]) {
+            // Manually POST a reference
             ("POST", "/api/reference") => {
                 if let Ok(update) = serde_json::from_slice::<ReferenceInformation>(&req.body) {
                     store_reference(ctx, update.name, update.url).await
@@ -56,6 +67,7 @@ impl HttpServer for OcirefferActor {
                     HttpResponse::bad_request("Payload did not contain provider name and url")
                 }
             }
+            // Invoked via Azure webhooks
             ("POST", "/api/azurehook") => {
                 if let Ok(event) = serde_json::from_slice::<RequestPayload>(&req.body) {
                     let name = &event.target.repository;
@@ -70,10 +82,37 @@ impl HttpServer for OcirefferActor {
                     )
                 }
             }
-            ("GET", path) => HttpResponse::ok(
+            // Add a name to an "official" wasmCloud list
+            ("POST", "/category") => {
+                if let Ok(req) = serde_json::from_slice::<OfficialPost>(&req.body) {
+                    add_official(ctx, req.category, req.name).await
+                } else {
+                    HttpResponse::bad_request(
+                        "Payload did not contain required category and name fields",
+                    )
+                }
+            }
+            // Retrieve the "official" wasmCloud resources
+            ("GET", "/category") => {
+                if let Ok(req) = serde_json::from_slice::<OfficialGet>(&req.body) {
+                    HttpResponse::ok(fetch_official(ctx, req.category).await)
+                } else {
+                    HttpResponse::bad_request("Payload did not contain required category field")
+                }
+            }
+            ("DELETE", "/category") => {
+                if let Ok(req) = serde_json::from_slice::<OfficialPost>(&req.body) {
+                    remove_official(ctx, req.category, req.name).await
+                } else {
+                    HttpResponse::bad_request(
+                        "Payload did not contain required category and name fields",
+                    )
+                }
+            }
+            ("GET", name) => HttpResponse::ok(
                 serde_json::to_vec(&ShieldsResponse::new(
                     "",
-                    &fetch_reference(ctx, path.trim_matches('/'))
+                    &fetch_reference(ctx, name.trim_matches('/'))
                         .await
                         .unwrap_or_else(|| "Provider not yet published".to_string()),
                     WASMCLOUD_GUNMETAL_COLOR,
@@ -84,6 +123,10 @@ impl HttpServer for OcirefferActor {
         })
     }
 }
+
+//
+// Individual functions
+//
 
 async fn store_reference(ctx: &Context, name: &str, url: &str) -> HttpResponse {
     if let Err(e) = KeyValueSender::new()
@@ -104,13 +147,72 @@ async fn store_reference(ctx: &Context, name: &str, url: &str) -> HttpResponse {
 }
 
 async fn fetch_reference(ctx: &Context, name: &str) -> Option<String> {
-    if let Ok(GetResponse {
-        exists: true,
-        value,
-    }) = KeyValueSender::new().get(ctx, name).await
+    KeyValueSender::new()
+        .get(ctx, name)
+        .await
+        .ok()
+        .filter(|r| r.exists)
+        .map(|r| r.value)
+}
+
+//
+// "Official" set functions
+//
+
+async fn add_official(ctx: &Context, category: &str, name: &str) -> HttpResponse {
+    if let Err(e) = KeyValueSender::new()
+        .set_add(
+            ctx,
+            &SetAddRequest {
+                set_name: format!("{OFFICIAL_KEY_PREFIX}:{category}"),
+                value: name.to_string(),
+            },
+        )
+        .await
     {
-        Some(value)
+        HttpResponse::internal_server_error(format!("Failed to store official {category}: {e:?}",))
     } else {
-        None
+        HttpResponse::ok(format!("Official {category} {name} added"))
     }
+}
+
+async fn remove_official(ctx: &Context, category: &str, name: &str) -> HttpResponse {
+    if let Err(e) = KeyValueSender::new()
+        .set_del(
+            ctx,
+            &SetDelRequest {
+                set_name: format!("{OFFICIAL_KEY_PREFIX}:{category}"),
+                value: name.to_string(),
+            },
+        )
+        .await
+    {
+        HttpResponse::internal_server_error(format!("Failed to remove official {category}: {e:?}",))
+    } else {
+        HttpResponse::ok(format!("Official {category} {name} removed"))
+    }
+}
+
+async fn fetch_official(ctx: &Context, category: &str) -> String {
+    let keyvalue = KeyValueSender::new();
+    let all_official = keyvalue
+        .get(ctx, &format!("{OFFICIAL_KEY_PREFIX}:{category}"))
+        .await
+        .ok()
+        .filter(|r| r.exists)
+        .map(|r| r.value)
+        .unwrap_or_default();
+
+    let mut references = vec![];
+    while let Some(next) = all_official.split(',').into_iter().next() {
+        if let Ok(GetResponse {
+            exists: true,
+            value,
+        }) = keyvalue.get(ctx, next).await
+        {
+            references.push(value)
+        }
+    }
+
+    serde_json::to_string(&references).unwrap_or_default()
 }
