@@ -52,7 +52,7 @@ jobs:
       - name: Create release text
         run: |
           export oci_version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].version')
-          export claims=$(wash claims inspect build/*.wasm)
+          export claims=$(wash claims inspect build/*_s.wasm)
           echo "Your actor can be accessed at \`ghcr.io/${{ github.REPOSITORY }}:$oci_version\`" >> release.txt
           echo "Claims information:" >> release.txt
           echo "\`\`\`" >> release.txt
