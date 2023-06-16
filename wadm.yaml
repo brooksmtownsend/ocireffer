@@ -1,0 +1,63 @@
+# This is a full example of how to run the kvcounter actor exposed with an HTTP server. Using this
+# example requires you to have a Redis server running locally (though the linkdef can be modified to
+# use a Redis server you have running elsewhere) and WADM running:
+#
+# https://github.com/wasmCloud/wadm/tree/main/wadm. You can deploy this example with a simple command:
+#
+# `wash app deploy wadm.yaml`
+
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: ocireffer
+  annotations:
+    version: v0.0.1
+    description: "wasmCloud Key Value Counter Example"
+spec:
+  components:
+    - name: ocireffer
+      type: actor
+      properties:
+        image: file:///Users/brooks/github.com/brooksmtownsend/ocireffer/build/ocireffer_s.wasm
+      traits:
+        - type: spreadscaler
+          properties:
+            replicas: 1
+            spread:
+              requirements:
+                hostcore.os: macos
+        - type: linkdef
+          properties:
+            target: redis
+            values:
+              URL: redis://127.0.0.1:6379/
+        - type: linkdef
+          properties:
+            target: httpserver
+            values:
+              ADDRESS: 0.0.0.0:8081
+
+    - name: httpserver
+      type: capability
+      properties:
+        image: wasmcloud.azurecr.io/httpserver:0.17.0
+        contract: wasmcloud:httpserver
+      traits:
+        - type: spreadscaler
+          properties:
+            replicas: 1
+            spread:
+              requirements:
+                hostcore.os: macos
+    - name: redis
+      type: capability
+      properties:
+        image: wasmcloud.azurecr.io/kvredis:0.21.0
+        contract: wasmcloud:keyvalue
+      traits:
+        - type: spreadscaler
+          properties:
+            replicas: 1
+            spread:
+              requirements:
+                hostcore.os: macos

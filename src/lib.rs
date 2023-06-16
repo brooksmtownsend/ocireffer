@@ -15,9 +15,9 @@ const OFFICIAL_KEY_PREFIX: &str = "wasmcloud:category";
 struct OcirefferActor {}
 
 #[derive(serde::Deserialize, serde::Serialize)]
-struct ReferenceInformation<'a> {
-    name: &'a str,
-    url: &'a str,
+struct ReferenceInformation {
+    name: String,
+    url: String,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -62,7 +62,7 @@ impl HttpServer for OcirefferActor {
             // Manually POST a reference
             ("POST", "/api/reference") => {
                 if let Ok(update) = serde_json::from_slice::<ReferenceInformation>(&req.body) {
-                    store_reference(ctx, update.name, update.url).await
+                    store_reference(ctx, &update.name, &update.url).await
                 } else {
                     HttpResponse::bad_request("Payload did not contain provider name and url")
                 }
@@ -196,21 +196,22 @@ async fn remove_official(ctx: &Context, category: &str, name: &str) -> HttpRespo
 async fn fetch_official(ctx: &Context, category: &str) -> String {
     let keyvalue = KeyValueSender::new();
     let all_official = keyvalue
-        .get(ctx, &format!("{OFFICIAL_KEY_PREFIX}:{category}"))
+        .set_query(ctx, &format!("{OFFICIAL_KEY_PREFIX}:{category}"))
         .await
         .ok()
-        .filter(|r| r.exists)
-        .map(|r| r.value)
         .unwrap_or_default();
 
     let mut references = vec![];
-    while let Some(next) = all_official.split(',').into_iter().next() {
+    for official in all_official {
         if let Ok(GetResponse {
             exists: true,
             value,
-        }) = keyvalue.get(ctx, next).await
+        }) = keyvalue.get(ctx, &official).await
         {
-            references.push(value)
+            references.push(ReferenceInformation {
+                name: official.to_owned(),
+                url: value.to_owned(),
+            });
         }
     }
 
