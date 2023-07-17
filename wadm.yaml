@@ -1,4 +1,4 @@
-# This is a full example of how to run the kvcounter actor exposed with an HTTP server. Using this
+# This is a full example of how to run the ocireffer actor exposed with an HTTP server. Using this
 # example requires you to have a Redis server running locally (though the linkdef can be modified to
 # use a Redis server you have running elsewhere) and WADM running:
 #
@@ -12,20 +12,17 @@ metadata:
   name: ocireffer
   annotations:
     version: v0.0.1
-    description: "wasmCloud Key Value Counter Example"
+    description: "OCIreffer Example"
 spec:
   components:
     - name: ocireffer
       type: actor
       properties:
-        image: file:///Users/brooks/github.com/brooksmtownsend/ocireffer/build/ocireffer_s.wasm
+        image: ghcr.io/brooksmtownsend/ocireffer:0.4.0
       traits:
         - type: spreadscaler
           properties:
             replicas: 1
-            spread:
-              requirements:
-                hostcore.os: macos
         - type: linkdef
           properties:
             target: redis
@@ -35,8 +32,7 @@ spec:
           properties:
             target: httpserver
             values:
-              ADDRESS: 0.0.0.0:8081
-
+              ADDRESS: 0.0.0.0:8080
     - name: httpserver
       type: capability
       properties:
@@ -46,9 +42,6 @@ spec:
         - type: spreadscaler
           properties:
             replicas: 1
-            spread:
-              requirements:
-                hostcore.os: macos
     - name: redis
       type: capability
       properties:
@@ -58,6 +51,3 @@ spec:
         - type: spreadscaler
           properties:
             replicas: 1
-            spread:
-              requirements:
-                hostcore.os: macos
